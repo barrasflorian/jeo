@@ -28,8 +28,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 import jeo.common.exception.NoElementException;
 import jeo.common.io.IOManager;
@@ -38,8 +36,10 @@ import jeo.common.math.IGroup;
 import jeo.common.math.Interval;
 import jeo.common.math.IntervalCollection;
 import jeo.common.structure.ExtendedList;
+import jeo.common.structure.Triplet;
+import jeo.common.thread.IWorkQueue;
 import jeo.common.thread.Report;
-import jeo.common.thread.ReservedThreadPoolExecutor;
+import jeo.common.thread.WorkQueue;
 import jeo.common.util.Strings;
 import jeo.math.calculator.model.BinaryOperation;
 import jeo.math.calculator.model.Element;
@@ -47,6 +47,7 @@ import jeo.math.calculator.model.Element.Type;
 import jeo.math.calculator.model.MatrixElement;
 import jeo.math.calculator.model.ScalarElement;
 import jeo.math.calculator.model.UnaryOperation;
+import jeo.math.calculator.thread.ExpressionParser;
 import jeo.math.linearalgebra.Matrix;
 
 public class ExpressionHandler
@@ -62,14 +63,16 @@ public class ExpressionHandler
 	/**
 	 * The pool of threads.
 	 */
-	private static ExecutorService THREAD_POOL = null;
+	private static IWorkQueue<ExpressionParser, Triplet<Element, String, Map<String, Element>>, Element> THREAD_POOL = null;
 	/**
 	 * The list of unary operators.
 	 */
+	@SuppressWarnings("unchecked")
 	private static final List<List<Character>> UNARY_OPERATORS = new ArrayList<List<Character>>(Arrays.asList(Arrays.asList('!', '\''), Arrays.asList('@')));
 	/**
 	 * The list of binary operators.
 	 */
+	@SuppressWarnings("unchecked")
 	private static final List<List<Character>> BINARY_OPERATORS = new ArrayList<List<Character>>(Arrays.asList(Arrays.asList('+', '-'), Arrays.asList('*', '/'), Arrays.asList('^'), Arrays.asList('~')));
 
 
@@ -106,7 +109,8 @@ public class ExpressionHandler
 		if (USE_THREADS)
 		{
 			IOManager.printDebug("Create a pool of thread ...");
-			THREAD_POOL = new ReservedThreadPoolExecutor(Runtime.getRuntime().availableProcessors());
+			THREAD_POOL = new WorkQueue<ExpressionParser, Triplet<Element, String, Map<String, Element>>, Element>();
+			THREAD_POOL.initWorkers(new ExpressionParser(THREAD_POOL));
 			IOManager.printDebug("Done!");
 		}
 	}
@@ -121,7 +125,7 @@ public class ExpressionHandler
 			if (THREAD_POOL != null)
 			{
 				IOManager.printDebug("Shutdown the pool of threads ...");
-				THREAD_POOL.shutdown();
+				THREAD_POOL.end();
 				IOManager.printDebug("Done!");
 			}
 		}
@@ -166,15 +170,17 @@ public class ExpressionHandler
 		 */
 		final Interval<Integer> parenthesesIndexes = getLastParenthesesInterval(trimmedExpression);
 
+		// Decide to use threads
+		final boolean useThreads = USE_THREADS && THREAD_POOL.reserveWorkers(2);
+
 		// Get the index of the binary operator (if any)
-		final int binaryOperatorIndex = getBinaryOperatorIndex(trimmedExpression, parenthesesIndexes);
+		final int binaryOperatorIndex = getBinaryOperatorIndex(trimmedExpression, parenthesesIndexes, useThreads);
 
 		// Parse the binary operation
 		if (binaryOperatorIndex >= 0)
 		{
-			return parseBinaryOperation(parent, trimmedExpression, binaryOperatorIndex, context);
+			return parseBinaryOperation(parent, trimmedExpression, binaryOperatorIndex, context, useThreads);
 		}
-
 		// Parse the unary operation
 		else
 		{
@@ -192,11 +198,11 @@ public class ExpressionHandler
 	 * <p>
 	 * @return
 	 */
-	private static int getBinaryOperatorIndex(final String trimmedExpression, final Interval<Integer> parenthesesIndexes)
+	private static int getBinaryOperatorIndex(final String trimmedExpression, final Interval<Integer> parenthesesIndexes, final boolean useThreads)
 	{
 		final int binaryOperatorIndex;
 
-		if (USE_THREADS)
+		if (useThreads)
 		{
 			final IGroup<Integer> parentheses = getParenthesesIntervals(trimmedExpression);
 			final ExtendedList<Integer> indexes = getBinaryOperatorIndexes(trimmedExpression, parentheses);
@@ -219,7 +225,7 @@ public class ExpressionHandler
 		return binaryOperatorIndex;
 	}
 
-	private static Report<Element> parseBinaryOperation(final Element parent, final String trimmedExpression, final int binaryOperatorIndex, final Map<String, Element> context)
+	private static Report<Element> parseBinaryOperation(final Element parent, final String trimmedExpression, final int binaryOperatorIndex, final Map<String, Element> context, final boolean useThreads)
 	{
 		// Get the binary operator
 		final Type type = getType(trimmedExpression.charAt(binaryOperatorIndex));
@@ -230,56 +236,19 @@ public class ExpressionHandler
 		final String rightExpression = trimmedExpression.substring(binaryOperatorIndex + 1);
 
 		// Parse the expressions
-		Element leftTree, rightTree;
-		Report<Element> leftTreeResult, rightTreeResult;
-		if (USE_THREADS)
+		final Element leftTree, rightTree;
+		final Report<Element> leftTreeResult, rightTreeResult;
+		if (useThreads)
 		{
-			Future<Report<Element>> futureLeftTreeResult, futureRightTreeResult;
+			final Long leftId, rightId;
 
-			// Submit the tasks
-			IOManager.printDebug("Submit '" + leftExpression + "' ...");
-			futureLeftTreeResult = THREAD_POOL.submit(() -> parseExpression(parent, leftExpression, context));
-
-			IOManager.printDebug("Submit '" + rightExpression + "' ...");
-			futureRightTreeResult = THREAD_POOL.submit(() -> parseExpression(parent, rightExpression, context));
+			// Add the tasks
+			leftId = THREAD_POOL.addTask(new Triplet<Element, String, Map<String, Element>>(parent, leftExpression, context));
+			rightId = THREAD_POOL.addTask(new Triplet<Element, String, Map<String, Element>>(parent, rightExpression, context));
 
 			// Get the results
-			// - Left expression
-			if (futureLeftTreeResult != null)
-			{
-				try
-				{
-					IOManager.printDebug("-> Get '" + leftExpression + "' ...");
-					leftTreeResult = futureLeftTreeResult.get();
-				}
-				catch (final Exception ex)
-				{
-					leftTreeResult = new Report<Element>(null, new Message(ex));
-					IOManager.printError(ex);
-				}
-			}
-			else
-			{
-				leftTreeResult = parseExpression(parent, leftExpression, context);
-			}
-			// - Right expression
-			if (futureRightTreeResult != null)
-			{
-				try
-				{
-					IOManager.printDebug("-> Get '" + rightExpression + "' ...");
-					rightTreeResult = futureRightTreeResult.get();
-				}
-				catch (final Exception ex)
-				{
-					rightTreeResult = new Report<Element>(null, new Message(ex));
-					IOManager.printError(ex);
-				}
-			}
-			else
-			{
-				rightTreeResult = parseExpression(parent, rightExpression, context);
-			}
+			leftTreeResult = THREAD_POOL.getResult(leftId);
+			rightTreeResult = THREAD_POOL.getResult(rightId);
 		}
 		else
 		{
@@ -287,7 +256,6 @@ public class ExpressionHandler
 			leftTreeResult = parseExpression(parent, leftExpression, context);
 			rightTreeResult = parseExpression(parent, rightExpression, context);
 		}
-
 		// Get the trees from the results
 		// - Left
 		leftTree = leftTreeResult.getOutput();

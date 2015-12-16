@@ -26,17 +26,17 @@ package jeo.math.calculator.process;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 import jeo.common.exception.UnknownClassException;
 import jeo.common.exception.UnknownTypeException;
 import jeo.common.io.IOManager;
 import jeo.common.io.Message;
 import jeo.common.math.Maths;
+import jeo.common.structure.Pair;
 import jeo.common.structure.tree.RedBlackTreeMap;
+import jeo.common.thread.IWorkQueue;
 import jeo.common.thread.Report;
-import jeo.common.thread.ReservedThreadPoolExecutor;
+import jeo.common.thread.WorkQueue;
 import jeo.common.util.Strings;
 import jeo.math.calculator.model.BinaryOperation;
 import jeo.math.calculator.model.Element;
@@ -45,6 +45,7 @@ import jeo.math.calculator.model.MatrixElement;
 import jeo.math.calculator.model.Result;
 import jeo.math.calculator.model.ScalarElement;
 import jeo.math.calculator.model.UnaryOperation;
+import jeo.math.calculator.thread.TreeEvaluator;
 import jeo.math.linearalgebra.Entity;
 import jeo.math.linearalgebra.Matrix;
 import jeo.math.linearalgebra.Scalar;
@@ -62,7 +63,7 @@ public class Calculator
 	/**
 	 * The pool of threads.
 	 */
-	private static ExecutorService THREAD_POOL = null;
+	private static IWorkQueue<TreeEvaluator, Pair<Element, Map<String, Element>>, Entity> THREAD_POOL = null;
 	/**
 	 * The context containing the values of the variables.
 	 */
@@ -102,9 +103,8 @@ public class Calculator
 		end();
 		if (USE_THREADS)
 		{
-			IOManager.printDebug("Create a pool of thread ...");
-			THREAD_POOL = new ReservedThreadPoolExecutor(Runtime.getRuntime().availableProcessors());
-			IOManager.printDebug("Done!");
+			THREAD_POOL = new WorkQueue<TreeEvaluator, Pair<Element, Map<String, Element>>, Entity>();
+			THREAD_POOL.initWorkers(new TreeEvaluator(THREAD_POOL));
 		}
 		ExpressionHandler.init(useThreads);
 	}
@@ -120,7 +120,7 @@ public class Calculator
 			if (THREAD_POOL != null)
 			{
 				IOManager.printDebug("Shutdown the pool of threads ...");
-				THREAD_POOL.shutdown();
+				THREAD_POOL.end();
 				IOManager.printDebug("Done!");
 			}
 		}
@@ -166,46 +166,18 @@ public class Calculator
 	 */
 	private static Report<Entity> evaluateBinaryOperation(final BinaryOperation binaryOperation, final Map<String, Element> context)
 	{
-		Report<Entity> leftEntityResult, rightEntityResult;
-		if (USE_THREADS)
+		final Report<Entity> leftEntityResult, rightEntityResult;
+		if (USE_THREADS && THREAD_POOL.reserveWorkers(2))
 		{
+			final Long leftId, rightId;
+
 			// Add the tasks
-			final Future<Report<Entity>> futureLeftEntityResult = THREAD_POOL.submit(() -> Calculator.evaluateTree(binaryOperation.getLeft(), context));
-			final Future<Report<Entity>> futureRightEntityResult = THREAD_POOL.submit(() -> Calculator.evaluateTree(binaryOperation.getRight(), context));
+			leftId = THREAD_POOL.addTask(new Pair<Element, Map<String, Element>>(binaryOperation.getLeft(), context));
+			rightId = THREAD_POOL.addTask(new Pair<Element, Map<String, Element>>(binaryOperation.getRight(), context));
 
 			// Get the results
-			// - Left entity
-			if (futureLeftEntityResult != null)
-			{
-				try
-				{
-					leftEntityResult = futureLeftEntityResult.get();
-				}
-				catch (final Exception ex)
-				{
-					leftEntityResult = new Report<Entity>(null, new Message(ex));
-				}
-			}
-			else
-			{
-				leftEntityResult = evaluateTree(binaryOperation.getLeft(), context);
-			}
-			// - Right entity
-			if (futureRightEntityResult != null)
-			{
-				try
-				{
-					rightEntityResult = futureRightEntityResult.get();
-				}
-				catch (final Exception ex)
-				{
-					rightEntityResult = new Report<Entity>(null, new Message(ex));
-				}
-			}
-			else
-			{
-				rightEntityResult = evaluateTree(binaryOperation.getRight(), context);
-			}
+			leftEntityResult = THREAD_POOL.getResult(leftId);
+			rightEntityResult = THREAD_POOL.getResult(rightId);
 		}
 		else
 		{

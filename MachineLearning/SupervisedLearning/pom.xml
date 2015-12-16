@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>jeo.machinelearning</groupId>
 		<artifactId>machinelearning</artifactId>
-		<version>1.8.0</version>
+		<version>1.5.0</version>
 	</parent>
 	<!-- Information -->
 	<artifactId>supervisedlearning</artifactId>
