@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<!-- Information -->
+	<groupId>jeo</groupId>
+	<artifactId>jeo</artifactId>
+	<version>1.8.0</version>
+	<packaging>pom</packaging>
+	<name>Jeo</name>
+	<description>Java libraries containing generic structures and matrix operations (extending JAMA)</description>
+	<url>https://github.com/barrasflorian/jeo</url>
+	<!-- License -->
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://github.com/barrasflorian/jeo/blob/master/LICENSE</url>
+		</license>
+	</licenses>
+	<!-- Modules -->
+	<modules>
+		<module>Android</module>
+		<module>Common</module>
+		<module>Games</module>
+		<module>Graphics</module>
+		<module>GUI</module>
+		<module>MachineLearning</module>
+		<module>Math</module>
+		<module>Network</module>
+	</modules>
+	<!-- Properties -->
+	<properties>
+		<!-- Project -->
+		<project.build.source>1.8</project.build.source>
+		<project.build.target>1.8</project.build.target>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<!-- Maven -->
+		<maven.version>2.2.1</maven.version>
+		<maven.compiler.version>2.5.1</maven.compiler.version>
+		<maven.javadoc.version>2.10.3</maven.javadoc.version>
+		<!-- Default goal -->
+		<default.goal>install</default.goal>
+		<!-- Structure -->
+		<structure.source.folder>src</structure.source.folder>
+		<structure.output.folder>out</structure.output.folder>
+		<structure.resources.folder>res</structure.resources.folder>
+		<!-- Final name -->
+		<final.name>${project.groupId}-${project.artifactId}-${project.version}</final.name>
+	</properties>
+	<!-- Dependencies -->
+	<dependencies>
+		<!-- Maven -->
+		<dependency>
+			<groupId>org.apache.maven</groupId>
+			<artifactId>maven-artifact</artifactId>
+			<version>${maven.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.maven</groupId>
+			<artifactId>maven-project</artifactId>
+			<version>${maven.version}</version>
+		</dependency>
+	</dependencies>
+	<!-- Build -->
+	<build>
+		<!-- Final name -->
+		<finalName>${final.name}</finalName>
+		<!-- Structure -->
+		<sourceDirectory>${structure.source.folder}</sourceDirectory>
+		<directory>${structure.output.folder}</directory>
+		<outputDirectory>${structure.output.folder}/classes</outputDirectory>
+		<resources>
+			<resource>
+				<directory>${structure.resources.folder}</directory>
+			</resource>
+		</resources>
+		<!-- Default goal -->
+		<defaultGoal>${default.goal}</defaultGoal>
+		<!-- Plugins -->
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>${maven.compiler.version}</version>
+				<configuration>
+					<source>${project.build.source}</source>
+					<target>${project.build.target}</target>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<!-- Reporting -->
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>${maven.javadoc.version}</version>
+				<configuration>
+					<overview>${basedir}/overview.html</overview>
+				</configuration>
+			</plugin>
+		</plugins>
+	</reporting>
+</project>

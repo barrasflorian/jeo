@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<!-- Parent information -->
+	<parent>
+		<groupId>jeo.machinelearning</groupId>
+		<artifactId>supervisedlearning</artifactId>
+		<version>1.8.0</version>
+	</parent>
+	<!-- Project information -->
+	<artifactId>svm</artifactId>
+	<packaging>jar</packaging>
+	<name>SVM</name>
+	<description>Support vector machines</description>
+	<!-- Dependencies -->
+	<dependencies>
+		<!-- National Taiwan University -->
+		<dependency>
+			<groupId>tw.edu.ntu.csie</groupId>
+			<artifactId>libsvm</artifactId>
+			<version>3.17</version>
+		</dependency>
+
+		<!-- Jeo -->
+		<dependency>
+			<groupId>jeo</groupId>
+			<artifactId>common</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+	</dependencies>
+</project>
